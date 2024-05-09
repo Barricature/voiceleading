@@ -3,7 +3,7 @@ import {
     useState,
 } from "react";
 import Staff from'@components/Staff.jsx';
-import Button from '@assets/Button.jsx'; // Import the new Button component
+import Button from '@components/Button.jsx'; // Import the new Button component
 import {checker} from '@utils/checker.js'
 import {converter} from '@utils/convert.js'
 
