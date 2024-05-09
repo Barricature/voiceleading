@@ -1,78 +1,117 @@
-import { scaleDegreeToVexFlow, vexFlowToScaleDegree } from '@utils/convert';
+import { scaleDegreeToVexFlow, vexFlowToScaleDegree, romanNumeralToScaleDegree } from '@utils/convert.js';
 
 /**
- * Takes the voices in scale degree notation and return voice leading errors
- * @param {Array} voices [[1, 7, ...], [5, 4, ...], [3, 2, ...], [1, 7, ...]]
- * @return {Array} [
- *  {description: String, noteIndices: Int[][] }
- * ]
- */
-export function checkChordProgressions(voices, chords) {
-    errors = []
-    if (resolveSeventhToTonic(voices).error == false) {
-        errors.push({description: 'Seventh resolves to tonic', notesIndices: resolveSeventhToTonic(voices).notes});
-    }
-    if (noParallelFifths(voices).error == false) {
-        errors.push({description: 'Parallel fifth', notesIndices: resolveSeventhToTonic(voices).notes});
-    }
-    if (noParallelOctaves(voices).error == false) {
-        errors.push({description: 'Parallel octave', notesIndices: resolveSeventhToTonic(voices).notes});
-    }
-    return errors;
-}
- /**
-  * Given the voice leanding instance in four voices, 
-  * check if every vertical alignment contains exactly the notes in the corresponding chord in the chord progression
-  * @param {Object} voices {
+ * Takes the notes object and check for errors
+ * @param {Array} notes {
   *     soprano: VexFlow.StaveNote[],
   *     alto: VexFlow.StaveNote[],
   *     tenor: VexFlow.StaveNote[],
   *     bass: VexFlow.StaveNote[]
   * }
-  * @param {StringArray} chords the chord progression, e.g. ['I', 'ii', 'V', I]
-  */
-function checkChordNotes(voices, chords) {
-    let errors = [];
-    const voiceArray = [voices.soprano, voices.alto, voices.tenor, voices.bass];
-
-    chords.forEach((chord, index) => {
-        const expectedNotes = scales[chord].slice(0, 3);  // Assuming triad: root, third, fifth
-        const actualNotes = voiceArray.map(voice => vexFlowToScaleDegree(voice[index].getKeys()[0]));
-
-        if (!expectedNotes.every(note => actualNotes.includes(note))) {
-            errors.push({
-                chord: chord,
-                expected: expectedNotes,
-                actual: actualNotes,
-                description: `Mismatched notes in chord ${chord} at position ${index}`
-            });
+ * @return {Object} [
+ *  {description: String, noteIndices: }
+ * ]
+ */
+export function checkChordProgressions(tonic, mode, notes, chords) {
+    // Make sure that all voices are filled
+    const progressionLength = chords.length;
+    for (const [voicePart, voiceNotes] of Object.entries(notes)) {
+        if (voiceNotes.length < progressionLength) {
+            return new Error(voicePart + 'does not have enough notes');
         }
-    });
+    }
+    // Check for erros
+    const errors = []
+    const voices = ['soprano', 'alto', 'tenor', 'bass'].reduce((acc, voice) => {
+        acc[voice] = notes[voice].map(note => vexFlowToScaleDegree(tonic, mode, note));
+        return acc;
+    }, {});
+    if (checkChordNotes(voices, chords, mode).length > 0) {
+        checkChordNotes(voices, chords).forEach(error => errors.push(error));
+    }
+    if (resolveSeventhToTonic(voices).error == true) {
+        errors.push({description: 'Seventh should resolve to tonic', notesIndices: resolveSeventhToTonic(voices).notes});
+    }
+    if (noParallelFifths(voices).error == true) {
+        errors.push({description: 'Parallel fifth', notesIndices: resolveSeventhToTonic(voices).notes});
+    }
+    if (noParallelOctaves(voices).error == true) {
+        errors.push({description: 'Parallel octave', notesIndices: resolveSeventhToTonic(voices).notes});
+    }
+    return errors;
+}
+
+/**
+ * Checks if every vertical alignment (chord) contains exactly the notes specified in the corresponding chord from the progression.
+ * @param {Object} voices - An object with keys as voice parts and values as arrays of scale degrees.
+ * @param {Array} chords - The chord progression using Roman numerals, e.g., ['I', 'ii', 'V', 'I'].
+ * @param {String} tonic - The tonic of the key, e.g., 'C'.
+ * @param {String} mode - The mode, e.g., 'Major' or 'Minor'.
+ * @returns {Array} - An array of errors with descriptions and indices of problematic chords.
+ */
+function checkChordNotes(voices, chords, mode) {
+    const errors = [];
+    const voiceParts = Object.keys(voices);
+    const numberOfChords = chords.length;
+
+    for (let i = 0; i < numberOfChords; i++) {
+        const chord = chords[i];
+        const expectedDegrees = romanNumeralToScaleDegree(mode, chord);
+        const presentDegrees = [];
+
+        // Collect all notes present in this chord from all voices
+        voiceParts.forEach(voice => {
+            const degree = voices[voice][i];
+            if (degree) {
+                presentDegrees.push(degree);
+            }
+        });
+
+        // Check for any missing notes from the expected chord
+        expectedDegrees.forEach(degree => {
+            if (!presentDegrees.includes(degree)) {
+                errors.push({
+                    description: 'Missing note from chord',
+                    index: i,
+                });
+            }
+        });
+
+        // Check for any incorrect notes that shouldn't be in the chord
+        presentDegrees.forEach(degree => {
+            if (!expectedDegrees.includes(degree)) {
+                errors.push({
+                    description: 'Incorrect note',
+                    index: i,
+                });
+            }
+        });
+    }
 
     return errors;
 }
+
 
 /**
  * Set error to true if there's an error, 
  * otherwise set to false and leave notes field empty
  * @param {*} voices
- * @returns {Object} {error: Boolean, notes: Int[][]}
+ * @returns {Object} {error: Boolean, notes: Object[]}
  */
 function resolveSeventhToTonic(voices) {
-    let notesIndices = [];
-    for (let i = 0; i < voices.length - 1; i++) {
-        const currentSeventh = voices[i][6];  // Assuming the seventh degree is at index 6
-        const nextTonic = voices[i + 1][0];   // Assuming the tonic is at index 0 in the next chord
-
-        if (currentSeventh !== nextTonic - 1 && currentSeventh !== nextTonic + 6) {
-            notesIndices.push([i, i + 1]);
+    const message = {
+        error: false,
+        notes: []
+    }
+    for (const [voicePart, scaleDegreeNotes] of Object.entries(voices)) {
+        for (let i = 1; i < scaleDegreeNotes.length; i += 1) {
+            if (scaleDegreeNotes[i - 1] == 7 && scaleDegreeNotes[i] != 1) {
+                message.error = true;
+                message.notes.push({voicePart: i-1})
+            }
         }
     }
-
-    return {
-        error: notesIndices.length > 0,
-        notes: notesIndices
-    };
+    return message;
 }
 
 function noParallelFifths(voices) {
@@ -83,20 +122,40 @@ function noParallelOctaves(voices) {
     return checkParallelIntervals(voices, 12);  // Octave interval is 12 semitones
 }
 
+/**
+ * Checks for parallel intervals specified by the interval parameter across consecutive chords.
+ * @param {Object} voices - An object where each key is a voice part and each value is an array of scale degrees.
+ * @param {number} interval - The musical interval to check for parallel motion (e.g., 7 for fifths, 12 for octaves).
+ * @returns {Object} {error: Boolean, notes: Array} - Contains a boolean indicating if an error was found and an array of details for each error.
+ */
 function checkParallelIntervals(voices, interval) {
-    let notesIndices = [];
-    for (let i = 0; i < voices.length - 1; i++) {
-        for (let j = 0; j < voices[0].length - 1; j++) {
-            const interval1 = Math.abs(voices[i][j] - voices[i][j + 1]);
-            const interval2 = Math.abs(voices[i + 1][j] - voices[i + 1][j + 1]);
-            if (interval1 === interval && interval1 === interval2) {
-                notesIndices.push([i, j]);
+    const message = {
+        error: false,
+        notes: []
+    };
+    
+    const voiceParts = Object.keys(voices);
+    const numberOfChords = voices[voiceParts[0]].length; // Using the length of the first voice part as the reference
+
+    // Check for parallel intervals between each pair of voices across all chords
+    for (let i = 0; i < numberOfChords - 1; i++) { // Iterate through each chord, stopping before the last
+        for (let j = 0; j < voiceParts.length; j++) { // Iterate through each voice part
+            for (let k = j + 1; k < voiceParts.length; k++) { // Compare with every other voice part
+                const currentVoice1 = voices[voiceParts[j]][i];
+                const nextVoice1 = voices[voiceParts[j]][i + 1];
+                const currentVoice2 = voices[voiceParts[k]][i];
+                const nextVoice2 = voices[voiceParts[k]][i + 1];
+
+                // Check if the intervals between the two voices in the current chord and the next chord are both the specified interval
+                if (Math.abs(currentVoice1 - currentVoice2) === interval && Math.abs(nextVoice1 - nextVoice2) === interval) {
+                    message.error = true;
+                    message.notes.push(voiceParts[j]);
+                    message.notes.push(voiceParts[k]);
+                }
             }
         }
     }
 
-    return {
-        error: notesIndices.length > 0,
-        notes: notesIndices
-    };
+    return message;
 }
+

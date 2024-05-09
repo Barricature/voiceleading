@@ -26,8 +26,8 @@ module.exports = {
     filename: "[name].bundle.js",
     path: path.resolve(__dirname, "dist"),
     clean: true,
-    publicPath: "/voiceleading.github.io/",
-  },
+    publicPath: "/voiceleading/", // Adjust to match the GitHub Pages subpath
+},
   module: {
     rules: [
       {

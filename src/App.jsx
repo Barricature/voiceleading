@@ -3,9 +3,9 @@ import {
     useState,
 } from "react";
 import Staff from'@components/Staff.jsx';
-import Button from '@components/Button.jsx'; // Import the new Button component
-import {checker} from '@utils/checker.js'
-import {converter} from '@utils/convert.js'
+import Button from '@components/Button.jsx';
+import ErrorPanel from '@components/ErrorPanel.jsx'
+import { checkChordProgressions } from '@utils/checker.js';
 
 import "./styles.css";
 
@@ -19,6 +19,7 @@ export default function App() {
     const [mode, setMode] = useState('Major');
     const [tonic, setTonic] = useState('C');
     const [chords, setChords] = useState([]);
+    const [errors, setErrors] = useState([]);
     
     /**
      * Initiate a new practice session by picking a mode, a key, and generating chords
@@ -100,12 +101,18 @@ export default function App() {
         setChords(progression);
     };
     
+    const checkVoiceLeading = () => {
+        console.log(checkChordProgressions(tonic, mode, notes, chords));
+        setErrors(checkChordProgressions(tonic, mode, notes, chords));
+    }
+    
 
     return (
         <div>
             <Button onClick={initiatePractice} >Start</Button>
-            <Staff notes={notes} setNotes={setNotes} tonic={tonic} mode={mode} chords={chords}/>
-            {/* Additional UI elements to show notes, errors, etc. */}
+            <Staff notes={notes} setNotes={setNotes} tonic={tonic} mode={mode} chords={chords} errors={errors}/>
+            <Button onClick={checkVoiceLeading} >Check</Button>
+            <ErrorPanel errors={errors}></ErrorPanel>
         </div>
     );
 }
