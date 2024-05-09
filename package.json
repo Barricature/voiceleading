@@ -10,6 +10,7 @@
     "start": "webpack serve --open",
     "deploy": "gh-pages -d dist"
   },
+  "homepage": "http://https://barricature.github.io/voiceleading.github.io/",
   "author": "Iris Xia",
   "license": "ISC",
   "devDependencies": {
