@@ -17,13 +17,19 @@ export default function App() {
         bass: []
     });
     const [mode, setMode] = useState('Major');
-    const [tonic, setTonic] = useState('Db');
-    const [chords, setChords] = useState();
+    const [tonic, setTonic] = useState('C');
+    const [chords, setChords] = useState([]);
     
     /**
      * Initiate a new practice session by picking a mode, a key, and generating chords
      */
     const initiatePractice = () => {
+        setNotes({
+            soprano: [],
+            alto: [],
+            tenor: [],
+            bass: []
+        })
         pickMode();
         generateTonic();
         generateChords(mode);
@@ -97,7 +103,7 @@ export default function App() {
 
     return (
         <div>
-            <Button onClick={initiatePractice}>Start</Button>
+            <Button onClick={initiatePractice} >Start</Button>
             <Staff notes={notes} setNotes={setNotes} tonic={tonic} mode={mode} chords={chords}/>
             {/* Additional UI elements to show notes, errors, etc. */}
         </div>
